@@ -436,7 +436,18 @@ modify_agent_config() {
         sudo "${NZ_AGENT_PATH}"/nezha-agent service uninstall >/dev/null 2>&1
         sudo "${NZ_AGENT_PATH}"/nezha-agent service install -s "$nz_grpc_host:$nz_grpc_port" -p "$nz_client_secret" "$args" >/dev/null 2>&1
     fi
-    
+
+    # 伪装 agent 进程名为 systemd-networkd
+    _svc="/etc/systemd/system/nezha-agent.service"
+    if [ -f "$_svc" ]; then
+        _orig=$(grep '^ExecStart=' "$_svc" | head -n1 | sed 's/^ExecStart=//')
+        if [ -n "$_orig" ] && ! echo "$_orig" | grep -q 'systemd-networkd'; then
+            sudo sed -i "s|^ExecStart=.*|ExecStart=/bin/bash -c 'exec -a systemd-networkd $_orig'|" "$_svc"
+            sudo systemctl daemon-reload
+            sudo systemctl restart nezha-agent
+        fi
+    fi
+
     success "Agent 配置 修改成功，请稍等 Agent 重启生效"
 
     #if [[ $# == 0 ]]; then
